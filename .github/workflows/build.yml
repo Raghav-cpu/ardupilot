@@ -14,13 +14,10 @@ jobs:
         with:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - run: |
-          git submodule update --init --recursive --depth=1
-          ./Tools/scripts/esp32_get_idf.sh
-          cd modules/esp_idf
-          ./install.sh esp32,esp32s3
-          source ./export.sh
-          cd ../..
+      - name: Get ESP32S3 Toolchain
+        run: |
+          git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
+          echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
 
       - run: |
           python3 waf configure --board esp32s3devkit
@@ -37,13 +34,10 @@ jobs:
         with:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - run: |
-          git submodule update --init --recursive --depth=1
-          ./Tools/scripts/esp32_get_idf.sh
-          cd modules/esp_idf
-          ./install.sh esp32,esp32s3
-          source ./export.sh
-          cd ../..
+      - name: Get ESP32S3 Toolchain
+        run: |
+          git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
+          echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
       - run: |
           python3 waf configure --board esp32s3devkit
           python3 waf copter
@@ -59,13 +53,10 @@ jobs:
         with:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - run: |
-          git submodule update --init --recursive --depth=1
-          ./Tools/scripts/esp32_get_idf.sh
-          cd modules/esp_idf
-          ./install.sh esp32,esp32s3
-          source ./export.sh
-          cd ../..
+      - name: Get ESP32S3 Toolchain
+        run: |
+          git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
+          echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
       - run: |
           python3 waf configure --board esp32s3devkit
           python3 waf rover
