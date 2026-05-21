@@ -26,9 +26,9 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Octal Memory Mapping Configurations
+      - name: Inject Octal Memory and Sensor Bypass Rules
         run: |
-          # Target configuration file pathway for the simulation/SITL environment
+          # 1. Target configuration file pathway for memory mappings
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
           
           echo "" >> $TARGET_CONF
@@ -43,6 +43,12 @@ jobs:
           echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
 
+          # 2. Inject a configuration rule to force the hardware definitions to allow empty sensor buses
+          HWDEF_FILE="libraries/AP_HAL_ESP32/boards/esp32s3devkit/hwdef.dat"
+          echo "" >> $HWDEF_FILE
+          echo "# Allow booting past missing or disconnected sensor matrices" >> $HWDEF_FILE
+          echo "define HAL_INS_DEFAULT HAL_INS_NONE" >> $HWDEF_FILE
+
       - name: Execute Compilation and Package Core Files
         run: |
           # 1. Source framework environments inside the runner context
@@ -52,17 +58,17 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # 3. Configure specifically for the ESP32S3 Software Simulator target
-          ./waf configure --board esp32s3sitl
+          # 3. Configure back on the true physical hardware target choice
+          ./waf configure --board esp32s3devkit
           
           # 4. Compile ArduPlane target payload
           ./waf plane
           
           # 5. Extract individual operational memory layout blocks into an upload directory
           mkdir -p output_binaries
-          cp build/esp32s3sitl/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
-          cp build/esp32s3sitl/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
-          cp build/esp32s3sitl/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
+          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
+          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
 
       - name: Securely Upload Artifact Collection
         uses: actions/upload-artifact@v4
