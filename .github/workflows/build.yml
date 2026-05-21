@@ -22,7 +22,8 @@ jobs:
 
       - name: Install ESP-IDF
         run: |
-          git clone --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
+          # Use release/v5.3 for tested C++ standard header compatibility
+          git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
           cd modules/esp_idf
           ./install.sh esp32s3
           
