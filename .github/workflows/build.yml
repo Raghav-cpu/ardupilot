@@ -30,6 +30,10 @@ jobs:
         run: |
           which xtensa-esp32s3-elf-ar
           xtensa-esp32s3-elf-ar --version
+      - name: Install Python dependencies
+        run: |
+            python3 -m pip install --upgrade pip
+            python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
 
       - run: |
           python3 waf configure --board esp32s3devkit
