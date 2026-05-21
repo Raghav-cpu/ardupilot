@@ -26,13 +26,11 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Octal Memory Mappings and Sensor Bypass Rules
+      - name: Inject Memory Mappings and Force No-Sensor Boot
         run: |
-          # 1. Target configuration file pathway for memory mappings
+          # 1. Inject Octal N16R8 PSRAM/Flash definitions
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
-          
           echo "" >> $TARGET_CONF
-          echo "# Custom N16R8 Specific Memory and Cache Allocations" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
           echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
@@ -43,31 +41,27 @@ jobs:
           echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
 
-          # 2. Force the C++ build engine to allow booting without a physical hardware IMU sensor
+          # 2. Patch the initialization loop to completely ignore missing INS (Inertial Navigation Sensors)
+          # We force ArduPilot to use the empty/none simulator sensor driver block natively.
+          SED_TARGET="libraries/AP_HAL_ESP32/HAL_ESP32_Class.cpp"
+          sed -i 's/init@AP_InertialSensor/print_init/g' $SED_TARGET || true
+          
+          # 3. Create a dummy board patch to trick the scheduler into skipping compass parsing
           TARGET_HEADER="libraries/AP_HAL_ESP32/boards/esp32s3devkit.h"
           if [ -f "$TARGET_HEADER" ]; then
-            echo "" >> $TARGET_HEADER
-            echo "#undef HAL_INS_DEFAULT" >> $TARGET_HEADER
-            echo "#define HAL_INS_DEFAULT HAL_INS_NONE" >> $TARGET_HEADER
             echo "#define AP_COMPASS_PROBING_ENABLED 0" >> $TARGET_HEADER
+            echo "#define HAL_INS_DEFAULT HAL_INS_NONE" >> $TARGET_HEADER
           fi
 
       - name: Execute Compilation and Package Core Files
         run: |
-          # 1. Source framework environments inside the runner context
           . $IDF_PATH/export.sh
-          
-          # 2. Install Python dependencies required by Waf/ArduPilot
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # 3. Configure back on the true physical hardware target choice
           ./waf configure --board esp32s3devkit
-          
-          # 4. Compile ArduPlane target payload
           ./waf plane
           
-          # 5. Extract individual operational memory layout blocks into an upload directory
           mkdir -p output_binaries
           cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
           cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
