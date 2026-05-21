@@ -26,7 +26,7 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Octal Memory and Sensor Bypass Rules
+      - name: Inject Octal Memory Mappings and Sensor Bypass Rules
         run: |
           # 1. Target configuration file pathway for memory mappings
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
@@ -43,11 +43,14 @@ jobs:
           echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
 
-          # 2. Inject a configuration rule to force the hardware definitions to allow empty sensor buses
-          HWDEF_FILE="libraries/AP_HAL_ESP32/boards/esp32s3devkit/hwdef.dat"
-          echo "" >> $HWDEF_FILE
-          echo "# Allow booting past missing or disconnected sensor matrices" >> $HWDEF_FILE
-          echo "define HAL_INS_DEFAULT HAL_INS_NONE" >> $HWDEF_FILE
+          # 2. Force the C++ build engine to allow booting without a physical hardware IMU sensor
+          TARGET_HEADER="libraries/AP_HAL_ESP32/boards/esp32s3devkit.h"
+          if [ -f "$TARGET_HEADER" ]; then
+            echo "" >> $TARGET_HEADER
+            echo "#undef HAL_INS_DEFAULT" >> $TARGET_HEADER
+            echo "#define HAL_INS_DEFAULT HAL_INS_NONE" >> $TARGET_HEADER
+            echo "#define AP_COMPASS_PROBING_ENABLED 0" >> $TARGET_HEADER
+          fi
 
       - name: Execute Compilation and Package Core Files
         run: |
