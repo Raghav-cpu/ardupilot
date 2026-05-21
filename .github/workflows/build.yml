@@ -14,8 +14,14 @@ jobs:
         with:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - name: Clone ESP32S3 Toolchain
-        run: git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
+      - name: Get ESP32S3 Toolchain (Linux)
+        run: |
+          git clone https://github.com/TangMeng12/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf.git
+          echo "$PWD/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
+      - name: Verify toolchain
+        run: |
+          which xtensa-esp32s3-elf-ar
+          xtensa-esp32s3-elf-ar --version
 
       - name: Add toolchain to PATH
         run: echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
