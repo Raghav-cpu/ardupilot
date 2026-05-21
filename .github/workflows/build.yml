@@ -15,8 +15,8 @@ jobs:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
       - run: |
-          wget https://github.com/espressif/crosstool-NG/releases/download/esp-2022r1/xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
-          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
+          wget https://github.com/espressif/crosstool-NG/releases/download/esp-11.2.0_20220519/xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
+          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
           echo "$PWD/xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
       - run: |
           python3 waf configure --board esp32s3devkit
@@ -34,8 +34,8 @@ jobs:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
       - run: |
-          wget https://github.com/espressif/crosstool-NG/releases/download/esp-2022r1/xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
-          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
+          wget https://github.com/espressif/crosstool-NG/releases/download/esp-11.2.0_20220519/xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
+          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
           echo "$PWD/xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
       - run: |
           python3 waf configure --board esp32s3devkit
@@ -53,8 +53,8 @@ jobs:
           submodules: recursive
       - run: sudo apt-get update && sudo apt-get install -y python3-pip git
       - run: |
-          wget https://github.com/espressif/crosstool-NG/releases/download/esp-2022r1/xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
-          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-2022r1-linux-amd64.tar.gz
+          wget https://github.com/espressif/crosstool-NG/releases/download/esp-11.2.0_20220519/xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
+          tar -xzf xtensa-esp32s3-elf-gcc8_4_0-esp-11.2.0_20220519-linux-amd64.tar.gz
           echo "$PWD/xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
       - run: |
           python3 waf configure --board esp32s3devkit
