@@ -18,17 +18,21 @@ jobs:
       - name: Install prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip git wget unzip ninja-build cmake
-
-      - name: Get ESP32S3 Toolchain (Linux)
-        run: |
-          git clone https://github.com/TangMeng12/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf.git
-          echo "$PWD/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
+          sudo apt-get install -y python3-pip git wget unzip ninja-build cmake flex bison gperf libncurses-dev dfu-util libusb-1.0-0
 
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+
+      - name: Setup ESP-IDF
+        run: |
+          git submodule update --init --recursive --depth=1
+          ./Tools/scripts/esp32_get_idf.sh
+          cd modules/esp_idf
+          ./install.sh esp32,esp32s3
+          source ./export.sh
+          cd ../..
 
       - name: Build Plane
         run: |
