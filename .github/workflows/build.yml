@@ -22,13 +22,33 @@ jobs:
 
       - name: Install ESP-IDF
         run: |
-          # Use release/v5.3 for tested C++ standard header compatibility
+          # Use release/v5.3 for verified C++ and toolchain structure stability
           git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
           cd modules/esp_idf
           ./install.sh esp32s3
           
           # Persist IDF_PATH dynamically across subsequent runner steps
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
+
+      - name: Inject N16R8 Memory Hardware Mappings
+        run: |
+          # Target the specific board profile's default configuration footprint
+          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          
+          echo "" >> $TARGET_CONF
+          echo "# Custom N16R8 Specific Memory and Cache Allocations" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
+          
+          echo "=== Patched sdkconfig.defaults for N16R8 ==="
+          cat $TARGET_CONF
 
       - name: Build Firmware Targets
         run: |
@@ -45,34 +65,34 @@ jobs:
           
           echo "=== Building Plane ==="
           ./waf plane
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduPlane.esp32s3devkit.bin
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduPlane.esp32s3devkit.elf
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduPlane.esp32s3n16r8.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduPlane.esp32s3n16r8.elf
           
           echo "=== Building Copter ==="
           ./waf copter
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduCopter.esp32s3devkit.bin
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduCopter.esp32s3devkit.elf
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduCopter.esp32s3n16r8.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduCopter.esp32s3n16r8.elf
           
           echo "=== Building Rover ==="
           ./waf rover
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduRover.esp32s3devkit.bin
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduRover.esp32s3devkit.elf
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduRover.esp32s3n16r8.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduRover.esp32s3n16r8.elf
           
           echo "=== Building Sub ==="
           ./waf sub
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduSub.esp32s3devkit.bin
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduSub.esp32s3devkit.elf
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduSub.esp32s3n16r8.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduSub.esp32s3n16r8.elf
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: esp32s3-binaries
+          name: esp32s3-n16r8-binaries
           path: |
-            ArduPlane.esp32s3devkit.bin
-            ArduPlane.esp32s3devkit.elf
-            ArduCopter.esp32s3devkit.bin
-            ArduCopter.esp32s3devkit.elf
-            ArduRover.esp32s3devkit.bin
-            ArduRover.esp32s3devkit.elf
-            ArduSub.esp32s3devkit.bin
-            ArduSub.esp32s3devkit.elf
+            ArduPlane.esp32s3n16r8.bin
+            ArduPlane.esp32s3n16r8.elf
+            ArduCopter.esp32s3n16r8.bin
+            ArduCopter.esp32s3n16r8.elf
+            ArduRover.esp32s3n16r8.bin
+            ArduRover.esp32s3n16r8.elf
+            ArduSub.esp32s3n16r8.bin
+            ArduSub.esp32s3n16r8.elf
