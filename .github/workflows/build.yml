@@ -20,24 +20,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-pip git wget unzip ninja-build cmake flex bison gperf libncurses-dev dfu-util libusb-1.0-0
 
-      - name: Install Python dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
-
       - name: Install ESP-IDF
         run: |
           git clone --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
           cd modules/esp_idf
           ./install.sh esp32s3
           
-          # Persist IDF_PATH dynamically for future GitHub runner steps
+          # Persist IDF_PATH dynamically across subsequent runner steps
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
       - name: Build Firmware Targets
         run: |
-          # Source the framework environment within the active shell execution context
+          # 1. Source the framework environment to activate its internal virtualenv
           . $IDF_PATH/export.sh
+          
+          # 2. Install Ardupilot dependencies directly into the active ESP-IDF Python context
+          echo "=== Installing Ardupilot dependencies into active virtualenv ==="
+          python3 -m pip install --upgrade pip
+          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
           echo "=== Configuring Board ==="
           ./waf configure --board esp32s3devkit
