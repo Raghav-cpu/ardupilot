@@ -28,7 +28,7 @@ jobs:
 
       - name: Inject Octal Memory Mapping Configurations
         run: |
-          # Overwrite default target parameters to unlock internal 16MB Flash and Octal RAM structures
+          # Target configuration file pathway
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
           
           echo "" >> $TARGET_CONF
@@ -48,15 +48,17 @@ jobs:
           # 1. Source framework environments inside the runner context
           . $IDF_PATH/export.sh
           
-          # 2. Secure python dependency installations
+          # 2. Install Python dependencies required by Waf/ArduPilot
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # 3. Configure and compile ArduPlane target payload
-          ./waf configure --board esp32s3devkit
+          # 3. Configure the board to build with integrated software simulation targets enabled
+          ./waf configure --board esp32s3devkit --define HAL_SIM_ENABLED=1
+          
+          # 4. Compile ArduPlane target payload
           ./waf plane
           
-          # 4. Extract individual operational memory layout blocks
+          # 5. Extract individual operational memory layout blocks into an upload directory
           mkdir -p output_binaries
           cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
           cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
