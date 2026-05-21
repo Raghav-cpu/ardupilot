@@ -1,92 +1,70 @@
-name: Build ArduPilot ESP32S3
+name: ESP32S3 Build
 
 on:
   push:
-    branches: ["master"]
+    branches: [ master ]
   pull_request:
-    branches: ["master"]
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  plane:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - run: sudo apt-get update && sudo apt-get install -y python3-pip git
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip git wget unzip ninja-build cmake
+
       - name: Get ESP32S3 Toolchain (Linux)
         run: |
           git clone https://github.com/TangMeng12/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf.git
           echo "$PWD/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
-      - name: Verify toolchain
-        run: |
-          which xtensa-esp32s3-elf-ar
-          xtensa-esp32s3-elf-ar --version
 
-      - name: Add toolchain to PATH
-        run: echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
-
-      - name: Verify toolchain
-        run: |
-          which xtensa-esp32s3-elf-ar
-          xtensa-esp32s3-elf-ar --version
       - name: Install Python dependencies
         run: |
-            python3 -m pip install --upgrade pip
-            python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+          python3 -m pip install --upgrade pip
+          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
 
-      - run: |
-          python3 waf configure --board esp32s3devkit
-          python3 waf plane
-      - uses: actions/upload-artifact@v4
-        with:
-          name: plane-esp32s3n16r8
-          path: build/esp32s3n16r8/bin/*
-
-  copter:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - name: Get ESP32S3 Toolchain
+      - name: Build Plane
         run: |
-          git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
-          echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
+          ./waf configure --board esp32s3devkit
+          ./waf plane
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduPlane.esp32s3devkit.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduPlane.esp32s3devkit.elf
 
-      - name: Verify toolchain
+      - name: Build Copter
         run: |
-          which xtensa-esp32s3-elf-ar
-          xtensa-esp32s3-elf-ar --version
-      - run: |
-          python3 waf configure --board esp32s3devkit
-          python3 waf copter
-      - uses: actions/upload-artifact@v4
-        with:
-          name: copter-esp32s3n16r8
-          path: build/esp32s3n16r8/bin/*
+          ./waf copter
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduCopter.esp32s3devkit.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduCopter.esp32s3devkit.elf
 
-  rover:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - run: sudo apt-get update && sudo apt-get install -y python3-pip git
-      - name: Get ESP32S3 Toolchain
+      - name: Build Rover
         run: |
-          git clone https://github.com/kubilaykerti/toolchain-xtensa-esp32s3.git
-          echo "$PWD/toolchain-xtensa-esp32s3/bin" >> $GITHUB_PATH
+          ./waf rover
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduRover.esp32s3devkit.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduRover.esp32s3devkit.elf
 
-      - name: Verify toolchain
+      - name: Build Sub
         run: |
-          which xtensa-esp32s3-elf-ar
-          xtensa-esp32s3-elf-ar --version
-      - run: |
-          python3 waf configure --board esp32s3devkit
-          python3 waf rover
-      - uses: actions/upload-artifact@v4
+          ./waf sub
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduSub.esp32s3devkit.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduSub.esp32s3devkit.elf
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: rover-esp32s3n16r8
-          path: build/esp32s3n16r8/bin/*
+          name: esp32s3-binaries
+          path: |
+            ArduPlane.esp32s3devkit.bin
+            ArduPlane.esp32s3devkit.elf
+            ArduCopter.esp32s3devkit.bin
+            ArduCopter.esp32s3devkit.elf
+            ArduRover.esp32s3devkit.bin
+            ArduRover.esp32s3devkit.elf
+            ArduSub.esp32s3devkit.bin
+            ArduSub.esp32s3devkit.elf
