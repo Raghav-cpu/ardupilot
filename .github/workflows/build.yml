@@ -25,40 +25,39 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
 
-      - name: Get ESP32S3 Toolchain (Linux)
-        run: |
-          git clone https://github.com/TangMeng12/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf.git
-          echo "$PWD/prebuilts_gcc_linux-x86_64_xtensa-esp32s3-elf/bin" >> $GITHUB_PATH
-
-      - name: Get ESP-IDF
+      - name: Install ESP-IDF
         run: |
           git clone --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
           cd modules/esp_idf
-          ./install.sh esp32,esp32s3
-          source ./export.sh
-          cd ../..
+          ./install.sh esp32s3
+          
+          # Persist IDF_PATH dynamically for future GitHub runner steps
+          echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Build Plane
+      - name: Build Firmware Targets
         run: |
+          # Source the framework environment within the active shell execution context
+          . $IDF_PATH/export.sh
+          
+          echo "=== Configuring Board ==="
           ./waf configure --board esp32s3devkit
+          
+          echo "=== Building Plane ==="
           ./waf plane
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduPlane.esp32s3devkit.bin
           cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduPlane.esp32s3devkit.elf
-
-      - name: Build Copter
-        run: |
+          
+          echo "=== Building Copter ==="
           ./waf copter
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduCopter.esp32s3devkit.bin
           cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduCopter.esp32s3devkit.elf
-
-      - name: Build Rover
-        run: |
+          
+          echo "=== Building Rover ==="
           ./waf rover
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduRover.esp32s3devkit.bin
           cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduRover.esp32s3devkit.elf
-
-      - name: Build Sub
-        run: |
+          
+          echo "=== Building Sub ==="
           ./waf sub
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ArduSub.esp32s3devkit.bin
           cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ArduSub.esp32s3devkit.elf
