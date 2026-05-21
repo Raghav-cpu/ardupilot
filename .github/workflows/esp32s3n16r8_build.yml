@@ -1,0 +1,69 @@
+name: ESP32S3 N16R8 Secure Build
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build_esp32s3_n16r8:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Base Linux Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip git wget unzip ninja-build cmake flex bison gperf libncurses-dev dfu-util libusb-1.0-0
+
+      - name: Setup Isolated ESP-IDF Framework
+        run: |
+          git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
+          cd modules/esp_idf
+          ./install.sh esp32s3
+          echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
+
+      - name: Inject Octal Memory Mapping Configurations
+        run: |
+          # Overwrite default target parameters to unlock internal 16MB Flash and Octal RAM structures
+          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          
+          echo "" >> $TARGET_CONF
+          echo "# Custom N16R8 Specific Memory and Cache Allocations" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
+
+      - name: Execute Compilation and Package Core Files
+        run: |
+          # 1. Source framework environments inside the runner context
+          . $IDF_PATH/export.sh
+          
+          # 2. Secure python dependency installations
+          python3 -m pip install --upgrade pip
+          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+          
+          # 3. Configure and compile ArduPlane target payload
+          ./waf configure --board esp32s3devkit
+          ./waf plane
+          
+          # 4. Extract individual operational memory layout blocks
+          mkdir -p output_binaries
+          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
+          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
+
+      - name: Securely Upload Artifact Collection
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32s3-n16r8-boot-package
+          path: output_binaries/
