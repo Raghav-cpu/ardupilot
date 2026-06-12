@@ -1,4 +1,4 @@
-name: ESP32S3 N16R8 Secure Build
+name: ESP32S3 N16R8 MPU9250 Build
 
 on:
   push:
@@ -26,11 +26,12 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Memory Mappings and Force Sensorless Boot
+      - name: Inject Octal Memory Mappings
         run: |
-          # 1. Setup N16R8 specific Flash/PSRAM config flags
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          
           echo "" >> $TARGET_CONF
+          echo "# Custom N16R8 Specific Memory and Cache Allocations" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
           echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
@@ -40,27 +41,6 @@ jobs:
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
-
-          # 2. Overwrite the header board file to disable physical IMU/Compass checking entirely
-          BOARD_HEADER="libraries/AP_HAL_ESP32/boards/esp32s3devkit.h"
-          
-          cat << 'EOF' > $BOARD_HEADER
-          #pragma once
-
-          #define HAL_BOARD_NAME "esp32s3devkit"
-          #define HAL_INS_DEFAULT HAL_INS_NONE
-          #define AP_COMPASS_PROBING_ENABLED 0
-          #define AP_COMPASS_DEFAULT_ENABLED 0
-          #define HAL_BARO_DEFAULT HAL_BARO_NONE
-
-          // Default network configuration vectors
-          #define WIFI_SSID "ardupilot123"
-          #define WIFI_PWD  "ardupilot123"
-
-          // Map basic fallback serial and operational parameters
-          #define HAL_USE_SERIAL 1
-          #define HAL_ESP32_WIFI 1
-          EOF
 
       - name: Execute Compilation and Package Core Files
         run: |
