@@ -52,9 +52,6 @@ public:
         return false;
     }
 
-    // return a ground vector estimate in meters/second, in North/East order
-    Vector2f groundspeed_vector() override;
-
     bool            use_compass() override {
         // this is actually never called at the moment; we use dcm's
         // return value.
@@ -75,10 +72,6 @@ public:
     bool get_relative_position_NED_origin(Vector3p &vec) const override;
     bool get_relative_position_NE_origin(Vector2p &posNE) const override;
     bool get_relative_position_D_origin(postype_t &posD) const override;
-
-    bool get_filter_status(nav_filter_status &status) const override;
-    bool get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const override;
-    void send_ekf_status_report(class GCS_MAVLINK &link) const override;
 
     void get_control_limits(float &ekfGndSpdLimit, float &controlScaleXY) const override;
 };
