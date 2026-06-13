@@ -1,4 +1,4 @@
-name: ESP32S3 N16R8 MPU9250 Build
+name: ESP32S3 N16R8 ArduPilot OPI Build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_esp32s3_n16r8:
+  build_esp32s3_n16r8_working:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -26,12 +26,14 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Octal Memory Mappings
+      - name: Inject Valid Octal Memory and Pin Mappings
         run: |
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
           
+          # Force the bootloader away from DOUT/QIO and lock it into OPI Mode
           echo "" >> $TARGET_CONF
-          echo "# Custom N16R8 Specific Memory and Cache Allocations" >> $TARGET_CONF
+          echo "# Absolute Hardware Overrides for N16R8 Octal Configuration" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
           echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
