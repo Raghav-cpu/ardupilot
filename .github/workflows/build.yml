@@ -28,7 +28,6 @@ jobs:
 
       - name: Overwrite Stock Devkit Hardware Definitions (In-Place)
         run: |
-          # Define the target directory path for the stock board definition
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
@@ -37,14 +36,18 @@ jobs:
           # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
           
-          # Allocate and reserve Wi-Fi engine blocks
+          # Force WiFi to Initialize in TCP Mode (HAL_ESP32_WIFI = 1)
           RESERVE_WIFI
           HAL_ESP32_WIFI 1
           WIFI_SSID "ardupilot123"
           WIFI_PWD "ardupilot123"
           
-          # Route primary serial MAVLink traffic directly over the network link
-          SERIAL0_PROTOCOL MAVLink2
+          # CRUCIAL FIX: Route MAVLink to SERIAL1 (The internal WiFi peripheral mapping)
+          SERIAL1_PROTOCOL MAVLink2
+          SERIAL1_BAUD 115200
+          
+          # Keep SERIAL0 mapped to standard console debug engine for the USB port
+          SERIAL0_PROTOCOL None
           SERIAL0_BAUD 115200
           
           # Define physical hardware SPI pins verified by your Arduino test sketch
@@ -53,8 +56,10 @@ jobs:
           PIN_SPI_MOSI GPIO11
           
           # Mount the physical MPU9250 IMU onto the primary internal SPI bus 1
-          SPIDEV mpu9250 SPI1 DEVICE(0) GPIO10 SPEED(1*MHZ) MODE(3)
-          IMU MPU9250 SPI:mpu9250
+          HAL_ESP32_SPI_BUSES {.host=SPI2_HOST, .dma_ch=SPI_DMA_CH_AUTO, .mosi=GPIO_NUM_11, .miso=GPIO_NUM_13, .sclk=GPIO_NUM_12}
+          HAL_ESP32_SPI_DEVICES {.name="mpu9250", .bus=0, .device=0, .cs=GPIO_NUM_10, .mode=3, .lspeed=1*MHZ, .hspeed=8*MHZ}
+          
+          IMU mpu9250 SPI:mpu9250
           
           # Disable unpopulated companion hardware modules to prevent initialization faults
           AP_COMPASS_PROBING_ENABLED 0
@@ -82,7 +87,6 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # Configure and execute using the validated stock name target
           ./waf configure --board esp32s3devkit
           ./waf plane
           
