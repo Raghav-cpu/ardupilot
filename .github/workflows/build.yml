@@ -26,46 +26,47 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Custom Hardware Definition (hwdef)
+      - name: Overwrite Stock Devkit Hardware Definitions (In-Place)
         run: |
-          # Create a dedicated hardware profile folder for your custom layout
-          mkdir -p libraries/AP_HAL_ESP32/boards/custom_s3
+          # Define the target directory path for the stock board definition
+          DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
+          mkdir -p $DEVKIT_DIR
           
-          # Write the hardware mapping definition file
-          cat << 'EOF' > libraries/AP_HAL_ESP32/boards/custom_s3/hwdef.dat
-          # Custom ESP32-S3 N16R8 Board Layout Configuration
+          # Overwrite hwdef.dat inside the existing target structure
+          cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
+          # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
           
-          # Force Serial 0 to bind explicitly to the Wireless Network Endpoint
+          # Allocate and reserve Wi-Fi engine blocks
           RESERVE_WIFI
           HAL_ESP32_WIFI 1
           WIFI_SSID "ardupilot123"
           WIFI_PWD "ardupilot123"
           
-          # Map native MAVLink packet execution directly to the network socket
+          # Route primary serial MAVLink traffic directly over the network link
           SERIAL0_PROTOCOL MAVLink2
           SERIAL0_BAUD 115200
           
-          # Define the physical SPI Bus pins verified by your Arduino test sketch
+          # Define physical hardware SPI pins verified by your Arduino test sketch
           PIN_SPI_SCK  GPIO12
           PIN_SPI_MISO GPIO13
           PIN_SPI_MOSI GPIO11
           
-          # Register the physical MPU9250 IMU Sensor directly on SPI Bus 1 with Chip Select 10
+          # Mount the physical MPU9250 IMU onto the primary internal SPI bus 1
           SPIDEV mpu9250 SPI1 DEVICE(0) GPIO10 SPEED(1*MHZ) MODE(3)
           IMU MPU9250 SPI:mpu9250
           
-          # Disable unpopulated compass and barometer sensor loops to prevent startup blocks
+          # Disable unpopulated companion hardware modules to prevent initialization faults
           AP_COMPASS_PROBING_ENABLED 0
           AP_COMPASS_DEFAULT_ENABLED 0
           HAL_BARO_DEFAULT HAL_BARO_NONE
           EOF
 
-      - name: Inject Target Memory Matrix Parameter Rules
+      - name: Inject Target Memory Matrix Configuration Settings
         run: |
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
           echo "" >> $TARGET_CONF
-          echo "# Absolute Hardware Overrides for N16R8 Octal Setup" >> $TARGET_CONF
+          echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
@@ -75,20 +76,20 @@ jobs:
           echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
 
-      - name: Execute Compilation against Custom Board
+      - name: Execute Build Sequence using Valid Waf Choices
         run: |
           . $IDF_PATH/export.sh
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # Configure Waf to target our custom hardware matrix instead of the devkit defaults
-          ./waf configure --board custom_s3
+          # Configure and execute using the validated stock name target
+          ./waf configure --board esp32s3devkit
           ./waf plane
           
           mkdir -p output_binaries
-          cp build/custom_s3/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
-          cp build/custom_s3/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
-          cp build/custom_s3/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.custom_s3.bin
+          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
+          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
 
       - name: Securely Upload Artifact Collection
         uses: actions/upload-artifact@v4
