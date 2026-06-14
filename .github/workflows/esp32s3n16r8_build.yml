@@ -26,31 +26,31 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Force Clean Overwrite of Hardware Matrix Definitions
+      - name: Reset and Overwrite Stock Hardware Definitions
         run: |
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
-          # Write an absolute minimal hardware map that features ZERO physical sensors
+          # Inject the absolute software layout mapping directly to bypass sensor freezes
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
           # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
           
-          # Initialize the wireless engine subsystem
+          # Initialize the wireless engine subsystem mapping
           RESERVE_WIFI
           HAL_ESP32_WIFI 1
           WIFI_SSID "ardupilot123"
           WIFI_PWD "ardupilot123"
           
-          # Map MAVLink telemetry to SERIAL1 (The internal WiFi peripheral routing layout)
+          # Map MAVLink telemetry to SERIAL1 (Internal WiFi loop routing)
           SERIAL1_PROTOCOL MAVLink2
           SERIAL1_BAUD 115200
           
-          # Completely isolate SERIAL0 to protect the raw USB logging pipe
+          # Isolate SERIAL0 to keep the native USB stream unencumbered
           SERIAL0_PROTOCOL None
           SERIAL0_BAUD 115200
           
-          # Force Fallback Emulator Driver flags (Guarantees "Init Gyro" block is skipped)
+          # Force Fallback Drivers (Guarantees "Init Gyro" block is skipped)
           HAL_INS_DEFAULT HAL_INS_NONE
           AP_COMPASS_PROBING_ENABLED 0
           AP_COMPASS_DEFAULT_ENABLED 0
@@ -71,16 +71,19 @@ jobs:
           echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
 
-      - name: Execute Build Sequence with Deep Cache Clean
+      - name: Execute Build Sequence with Corrected Ordering
         run: |
           . $IDF_PATH/export.sh
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # CRUCIAL CRACK: Deep clean any existing build footprints before re-configuring
+          # STEP 1: Wipe any stale cached dependencies first
           ./waf clean
           
+          # STEP 2: Configure the target profile (Creates the missing .waf configuration file)
           ./waf configure --board esp32s3devkit
+          
+          # STEP 3: Compile the final ArduPlane machine binaries
           ./waf plane
           
           mkdir -p output_binaries
