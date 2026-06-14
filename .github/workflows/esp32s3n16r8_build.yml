@@ -1,4 +1,4 @@
-name: ESP32S3 N16R8 Secure Build
+name: ESP32S3 N16R8 Custom Board Build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_esp32s3_n16r8:
+  build_custom_s3:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -26,11 +26,49 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Inject Memory Mappings and Force No-Sensor Boot
+      - name: Overwrite Stock Devkit Hardware Definitions (Force Telemetry Mode)
         run: |
-          # 1. Inject Octal N16R8 PSRAM/Flash definitions
+          DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
+          mkdir -p $DEVKIT_DIR
+          
+          cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
+          # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
+          MCU ESP32S3
+          
+          # Force WiFi to Initialize in TCP Mode (HAL_ESP32_WIFI = 1)
+          RESERVE_WIFI
+          HAL_ESP32_WIFI 1
+          WIFI_SSID "ardupilot123"
+          WIFI_PWD "ardupilot123"
+          
+          # Map MAVLink directly to SERIAL1 (The internal WiFi peripheral routing)
+          SERIAL1_PROTOCOL MAVLink2
+          SERIAL1_BAUD 115200
+          
+          # Keep SERIAL0 mapped to standard console debug engine for the USB port
+          SERIAL0_PROTOCOL None
+          SERIAL0_BAUD 115200
+          
+          # COMMENT OUT PHYSICAL IMU TO PREVENT THE HARDWARE HANG
+          # PIN_SPI_SCK  GPIO12
+          # PIN_SPI_MISO GPIO13
+          # PIN_SPI_MOSI GPIO11
+          # SPIDEV mpu9250 SPI1 DEVICE(0) GPIO10 SPEED(1*MHZ) MODE(3)
+          # IMU mpu9250 SPI:mpu9250
+          
+          # FORCE EMULATED FALLBACK INS DRIVERS (Bypasses "Init Gyro" block completely)
+          HAL_INS_DEFAULT HAL_INS_NONE
+          AP_COMPASS_PROBING_ENABLED 0
+          AP_COMPASS_DEFAULT_ENABLED 0
+          HAL_BARO_DEFAULT HAL_BARO_NONE
+          EOF
+
+      - name: Inject Target Memory Matrix Configuration Settings
+        run: |
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
           echo "" >> $TARGET_CONF
+          echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
           echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
@@ -38,22 +76,8 @@ jobs:
           echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
           echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
-          echo "CONFIG_ESP32S3_DATA_CACHE_64KB=y" >> $TARGET_CONF
-          echo "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y" >> $TARGET_CONF
 
-          # 2. Patch the initialization loop to completely ignore missing INS (Inertial Navigation Sensors)
-          # We force ArduPilot to use the empty/none simulator sensor driver block natively.
-          SED_TARGET="libraries/AP_HAL_ESP32/HAL_ESP32_Class.cpp"
-          sed -i 's/init@AP_InertialSensor/print_init/g' $SED_TARGET || true
-          
-          # 3. Create a dummy board patch to trick the scheduler into skipping compass parsing
-          TARGET_HEADER="libraries/AP_HAL_ESP32/boards/esp32s3devkit.h"
-          if [ -f "$TARGET_HEADER" ]; then
-            echo "#define AP_COMPASS_PROBING_ENABLED 0" >> $TARGET_HEADER
-            echo "#define HAL_INS_DEFAULT HAL_INS_NONE" >> $TARGET_HEADER
-          fi
-
-      - name: Execute Compilation and Package Core Files
+      - name: Execute Build Sequence using Valid Waf Choices
         run: |
           . $IDF_PATH/export.sh
           python3 -m pip install --upgrade pip
@@ -70,5 +94,5 @@ jobs:
       - name: Securely Upload Artifact Collection
         uses: actions/upload-artifact@v4
         with:
-          name: esp32s3-n16r8-boot-package
+          name: esp32s3-custom-package
           path: output_binaries/
