@@ -1,4 +1,4 @@
-name: ESP32S3 N16R8 Custom Board Build
+name: ESP32S3 N16R8 Absolute Bypass Build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_custom_s3:
+  build_bypass_s3:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -26,37 +26,31 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Overwrite Stock Devkit Hardware Definitions (Force Telemetry Mode)
+      - name: Force Clean Overwrite of Hardware Matrix Definitions
         run: |
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
+          # Write an absolute minimal hardware map that features ZERO physical sensors
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
           # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
           
-          # Force WiFi to Initialize in TCP Mode (HAL_ESP32_WIFI = 1)
+          # Initialize the wireless engine subsystem
           RESERVE_WIFI
           HAL_ESP32_WIFI 1
           WIFI_SSID "ardupilot123"
           WIFI_PWD "ardupilot123"
           
-          # Map MAVLink directly to SERIAL1 (The internal WiFi peripheral routing)
+          # Map MAVLink telemetry to SERIAL1 (The internal WiFi peripheral routing layout)
           SERIAL1_PROTOCOL MAVLink2
           SERIAL1_BAUD 115200
           
-          # Keep SERIAL0 mapped to standard console debug engine for the USB port
+          # Completely isolate SERIAL0 to protect the raw USB logging pipe
           SERIAL0_PROTOCOL None
           SERIAL0_BAUD 115200
           
-          # COMMENT OUT PHYSICAL IMU TO PREVENT THE HARDWARE HANG
-          # PIN_SPI_SCK  GPIO12
-          # PIN_SPI_MISO GPIO13
-          # PIN_SPI_MOSI GPIO11
-          # SPIDEV mpu9250 SPI1 DEVICE(0) GPIO10 SPEED(1*MHZ) MODE(3)
-          # IMU mpu9250 SPI:mpu9250
-          
-          # FORCE EMULATED FALLBACK INS DRIVERS (Bypasses "Init Gyro" block completely)
+          # Force Fallback Emulator Driver flags (Guarantees "Init Gyro" block is skipped)
           HAL_INS_DEFAULT HAL_INS_NONE
           AP_COMPASS_PROBING_ENABLED 0
           AP_COMPASS_DEFAULT_ENABLED 0
@@ -77,11 +71,14 @@ jobs:
           echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
 
-      - name: Execute Build Sequence using Valid Waf Choices
+      - name: Execute Build Sequence with Deep Cache Clean
         run: |
           . $IDF_PATH/export.sh
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+          
+          # CRUCIAL CRACK: Deep clean any existing build footprints before re-configuring
+          ./waf clean
           
           ./waf configure --board esp32s3devkit
           ./waf plane
@@ -94,5 +91,5 @@ jobs:
       - name: Securely Upload Artifact Collection
         uses: actions/upload-artifact@v4
         with:
-          name: esp32s3-custom-package
+          name: esp32s3-bypass-package
           path: output_binaries/
