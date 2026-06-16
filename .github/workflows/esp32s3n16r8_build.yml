@@ -1,4 +1,4 @@
-name: ESP32S3 N16R8 Absolute Bypass Build
+name: ESP32S3 N16R8 Active IMU Build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_bypass_s3:
+  build_imu_s3:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Code
@@ -26,35 +26,44 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Overwrite Stock Hardware Definitions
+      - name: Overwrite Hardware Definitions with Custom Pinout Matrix
         run: |
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
-          # Inject clean, hardware-decoupled maps directly to bypass device tracking loops
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
-          # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
+          # Custom Hardwired Pin Configuration for Raghavendra's Board
           MCU ESP32S3
           
-          # Initialize the wireless engine subsystem mapping
+          # Wireless Network Infrastructure Mapping
           RESERVE_WIFI
           HAL_ESP32_WIFI 1
           WIFI_SSID "ardupilot123"
           WIFI_PWD "ardupilot123"
           
-          # Map MAVLink telemetry to SERIAL1 (Internal WiFi loop routing)
+          # Route MAVLink to internal Wi-Fi loop tracking
           SERIAL1_PROTOCOL MAVLink2
           SERIAL1_BAUD 115200
           
-          # Isolate SERIAL0 to keep the native USB stream clean
+          # Clean down SERIAL0 to avoid console logging conflicts
           SERIAL0_PROTOCOL None
           SERIAL0_BAUD 115200
           
-          # Force Fallback Drivers (Guarantees "Init Gyro" block is skipped)
-          HAL_INS_DEFAULT HAL_INS_NONE
+          # PHYSICAL SPI INTERFACE REGISTER INITIALIZATION
+          # Syntax format: SPI_BUS SPI_HOST DMA_MODE MOSI MISO SCK
+          ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_11 GPIO_NUM_13 GPIO_NUM_12
+          
+          # HARDWARE DEVICE REGISTRATION MATRIX
+          # Syntax format: DEVICE_NAME BUS_IDX DEV_IDX CS_PIN SPI_MODE LOW_SPEED HIGH_SPEED
+          ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  3    1*MHZ   4*MHZ
+          
+          # Bind software engine abstraction to the freshly registered physical device
+          IMU mpu9250 SPI:mpu9250
+          
+          # Secondary Sensor Configurations (Set to none to isolate IMU verification)
+          HAL_BARO_DEFAULT HAL_BARO_NONE
           AP_COMPASS_PROBING_ENABLED 0
           AP_COMPASS_DEFAULT_ENABLED 0
-          HAL_BARO_DEFAULT HAL_BARO_NONE
           EOF
 
       - name: Inject Target Memory Matrix Configuration Settings
@@ -75,14 +84,12 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           
-          # STEP 1: Establish environment dependencies cleanly
+          # Establish isolated build environment requirements
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # STEP 2: Configure the target board directly (Initializes compilation rules)
+          # Directly configure environment to bind our freshly patched hardware mapping file
           ./waf configure --board esp32s3devkit
-          
-          # STEP 3: Compile the final machine binary files
           ./waf plane
           
           mkdir -p output_binaries
@@ -91,7 +98,7 @@ jobs:
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
 
       - name: Securely Upload Artifact Collection
-        uses: uses:actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
-          name: esp32s3-bypass-package
+          name: esp32s3-imu-package
           path: output_binaries/
