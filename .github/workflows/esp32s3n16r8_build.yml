@@ -31,7 +31,7 @@ jobs:
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
-          # Inject an absolute software map that bypasses physical IMU checks
+          # Inject clean, hardware-decoupled maps directly to bypass device tracking loops
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
           # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
@@ -75,17 +75,14 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           
-          # STEP 1: Fully patch and lock down Python variables before touching Waf
+          # STEP 1: Establish environment dependencies cleanly
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # STEP 2: Clear old artifacts completely 
-          ./waf clean
-          
-          # STEP 3: Run configuration inside the newly sealed python environment
+          # STEP 2: Configure the target board directly (Initializes compilation rules)
           ./waf configure --board esp32s3devkit
           
-          # STEP 4: Compile the final ArduPlane machine binaries
+          # STEP 3: Compile the final machine binary files
           ./waf plane
           
           mkdir -p output_binaries
@@ -94,7 +91,7 @@ jobs:
           cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
 
       - name: Securely Upload Artifact Collection
-        uses: actions/upload-artifact@v4
+        uses: uses:actions/upload-artifact@v4
         with:
           name: esp32s3-bypass-package
           path: output_binaries/
