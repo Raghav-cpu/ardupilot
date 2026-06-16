@@ -26,12 +26,12 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Reset and Overwrite Stock Hardware Definitions
+      - name: Overwrite Stock Hardware Definitions
         run: |
           DEVKIT_DIR="libraries/AP_HAL_ESP32/boards/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
-          # Inject the absolute software layout mapping directly to bypass sensor freezes
+          # Inject an absolute software map that bypasses physical IMU checks
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
           # Custom Modified Overrides for Raghavendra's ESP32-S3 N16R8
           MCU ESP32S3
@@ -46,7 +46,7 @@ jobs:
           SERIAL1_PROTOCOL MAVLink2
           SERIAL1_BAUD 115200
           
-          # Isolate SERIAL0 to keep the native USB stream unencumbered
+          # Isolate SERIAL0 to keep the native USB stream clean
           SERIAL0_PROTOCOL None
           SERIAL0_BAUD 115200
           
@@ -71,19 +71,19 @@ jobs:
           echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
           echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
 
-      - name: Execute Build Sequence with Corrected Ordering
+      - name: Execute Build Sequence with Corrected Pipeline Order
         run: |
           . $IDF_PATH/export.sh
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # STEP 1: Wipe any stale cached dependencies first
+          # STEP 1: Deep wipe old workspace configurations
           ./waf clean
           
-          # STEP 2: Configure the target profile (Creates the missing .waf configuration file)
+          # STEP 2: Configure the architecture environment first (Generates the required .waf metadata)
           ./waf configure --board esp32s3devkit
           
-          # STEP 3: Compile the final ArduPlane machine binaries
+          # STEP 3: Now run compilation safely
           ./waf plane
           
           mkdir -p output_binaries
