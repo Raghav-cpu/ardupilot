@@ -74,16 +74,18 @@ jobs:
       - name: Execute Build Sequence with Corrected Pipeline Order
         run: |
           . $IDF_PATH/export.sh
+          
+          # STEP 1: Fully patch and lock down Python variables before touching Waf
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # STEP 1: Deep wipe old workspace configurations
+          # STEP 2: Clear old artifacts completely 
           ./waf clean
           
-          # STEP 2: Configure the architecture environment first (Generates the required .waf metadata)
+          # STEP 3: Run configuration inside the newly sealed python environment
           ./waf configure --board esp32s3devkit
           
-          # STEP 3: Now run compilation safely
+          # STEP 4: Compile the final ArduPlane machine binaries
           ./waf plane
           
           mkdir -p output_binaries
