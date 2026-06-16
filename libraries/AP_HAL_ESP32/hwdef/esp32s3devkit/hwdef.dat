@@ -4,16 +4,17 @@ define HAL_ESP32_BOARD_NAME "esp32s3devkit"
 
 # SPI Buses; https://docs.espressif.com/projects/esp-idf/en/v5.3.4/esp32/api-reference/peripherals/spi_master.html
 #            Host      DMA Channel     MOSI        MISO        SCLK
-ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_36 GPIO_NUM_37 GPIO_NUM_35
-
+# ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_36 GPIO_NUM_37 GPIO_NUM_35
+ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_11 GPIO_NUM_13 GPIO_NUM_12
 # i2c Buses
 #             Port       SDA         SCL          SPEED    INTERNAL SOFT
 ESP32_I2CBUS  I2C_NUM_0  GPIO_NUM_16 GPIO_NUM_15  400*KHZ  true     false
 
 # SPI Devices
 #            Name                Bus   Device  ChipSel      Mode LoSpeed HiSpeed
-ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_34  0    2*MHZ   8*MHZ
+# ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_34  0    2*MHZ   8*MHZ
 # ESP32_SPIDEV bmp280              0     0       GPIO_NUM_46  3    10*MHZ  10*MHZ
+ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  3    1*MHZ   4*MHZ
 
 
 define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
