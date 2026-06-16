@@ -1,120 +1,68 @@
-name: ESP32S3 N16R8 Diagnostic Build
+name: ESP32S3 Diagnostic Build
 
 on:
-  push:
-    branches: [ master, main ]
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  build_esp32s3:
-    runs-on: ubuntu-22.04
+build:
+runs-on: ubuntu-22.04
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+```
+steps:
+  - uses: actions/checkout@v4
+    with:
+      submodules: recursive
 
-      - name: Install Linux Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            git \
-            wget \
-            unzip \
-            ninja-build \
-            cmake \
-            flex \
-            bison \
-            gperf \
-            libncurses-dev \
-            dfu-util \
-            libusb-1.0-0
+  - name: Install dependencies
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y \
+        python3-pip git wget unzip \
+        ninja-build cmake flex bison gperf \
+        libncurses-dev dfu-util libusb-1.0-0
 
-      - name: Install ESP-IDF v5.3
-        run: |
-          git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
-          cd modules/esp_idf
-          ./install.sh esp32s3
-          echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
+  - name: Install ESP-IDF
+    run: |
+      git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
+      cd modules/esp_idf
+      ./install.sh esp32s3
+      echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Show Active HWDEF
-        run: |
-          echo "===================================="
-          echo "ESP32S3DEVKIT HWDEF CONTENTS"
-          echo "===================================="
-          cat libraries/AP_HAL_ESP32/hwdef/esp32s3devkit/hwdef.dat
+  - name: Show hwdef
+    run: |
+      echo "===== HWDEF ====="
+      cat libraries/AP_HAL_ESP32/hwdef/esp32s3devkit/hwdef.dat
 
-      - name: Configure N16R8 Flash + PSRAM
-        run: |
-          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+  - name: Install Python packages
+    run: |
+      python3 -m pip install --upgrade pip
+      python3 -m pip install \
+        empy==3.3.4 \
+        lxml \
+        pymavlink \
+        MAVProxy \
+        pexpect \
+        flake8 \
+        geocoder \
+        dronecan \
+        "pydantic<2.12"
 
-          echo "" >> $TARGET_CONF
-          echo "# N16R8 SETTINGS" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
-          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
+  - name: Configure board
+    run: |
+      . $IDF_PATH/export.sh
 
-      - name: Install Python Build Dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install \
-            empy==3.3.4 \
-            lxml \
-            pymavlink \
-            MAVProxy \
-            pexpect \
-            flake8 \
-            geocoder \
-            dronecan \
-            "pydantic<2.12"
+      echo "PWD:"
+      pwd
 
-      - name: Configure Board
-        run: |
-          . $IDF_PATH/export.sh
+      echo "HWDEF EXISTS:"
+      ls -la libraries/AP_HAL_ESP32/hwdef/esp32s3devkit/
 
-          ./waf clean
-          ./waf configure --board esp32s3devkit
+      ./waf clean
 
-      - name: Inspect Generated Configuration
-        run: |
-          echo "===================================="
-          echo "SEARCHING GENERATED BUILD FILES"
-          echo "===================================="
+      ./waf configure --board esp32s3devkit -v
 
-          grep -R "mpu9250" build || true
-          grep -R "GPIO_NUM_10" build || true
-          grep -R "GPIO_NUM_11" build || true
-          grep -R "GPIO_NUM_12" build || true
-          grep -R "GPIO_NUM_13" build || true
-
-          echo "===================================="
-          echo "HWDEF FILES FOUND"
-          echo "===================================="
-
-          find . -name hwdef.dat
-
-      - name: Build ArduPlane
-        run: |
-          . $IDF_PATH/export.sh
-          ./waf plane
-
-      - name: Collect Artifacts
-        run: |
-          mkdir -p output_binaries
-
-          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/
-          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: esp32s3-diagnostic-build
-          path: output_binaries/
+  - name: Build plane
+    run: |
+      . $IDF_PATH/export.sh
+      ./waf plane -v
+```
