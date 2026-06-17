@@ -34,43 +34,40 @@ jobs:
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
           define HAL_ESP32_BOARD_NAME "esp32s3devkit"
 
-          # SPI Bus Setup
-          ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_11 GPIO_NUM_13 GPIO_NUM_12
+          # ========================================================================
+          # 1. PHYSICAL PERIPHERAL BUS CORES
+          # ========================================================================
+          # SPI Bus Core Setup (Bus 0 Mapping matrix)
+          #              Host          DMA Channel      MOSI         MISO         SCLK
+          ESP32_SPIBUS   SPI3_HOST     SPI_DMA_CH_AUTO  GPIO_NUM_11  GPIO_NUM_13  GPIO_NUM_12
 
-          # I2C Bus Setup
-          ESP32_I2CBUS  I2C_NUM_0  GPIO_NUM_16 GPIO_NUM_15  400*KHZ  true     false
+          # I2C Bus Core Setup (Bus 0 Mapping matrix)
+          #              Port          SDA          SCL          SPEED    INTERNAL SOFT
+          ESP32_I2CBUS   I2C_NUM_0     GPIO_NUM_16  GPIO_NUM_15  400*KHZ  true     false
 
-          # SPI Device Registration (Mode 0)
-          ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  0    1*MHZ   4*MHZ
+          # ========================================================================
+          # 2. SPI CHIP SELECTION & PERIPHERAL DRIVERS
+          # ========================================================================
+          # SPI Device Mapping table
+          #              Name          Bus   Device   ChipSel      Mode  LoSpeed  HiSpeed
+          ESP32_SPIDEV   mpu9250       0     0        GPIO_NUM_10  0     1*MHZ    4*MHZ
 
-          #define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
-
-          # ADC Pin Maps
-          ESP32_ADC_PIN ADC_CHANNEL_4       11     1
-          ESP32_ADC_PIN ADC_CHANNEL_3       11     2
-          ESP32_ADC_PIN ADC_CHANNEL_1       11     3
-          ESP32_ADC_PIN ADC_CHANNEL_0       11     4
-
-          #-----INS/IMU-----
+          #-----INS / IMU SELECTION-----
           IMU Invensense SPI:mpu9250 ROTATION_NONE
           define HAL_INS_DEFAULT HAL_INS_MPU9250_SPI
           define INS_MAX_INSTANCES 3
 
-          #-----COMPASS-----
-          COMPASS AK8963:probe_mpu9250 0 ROTATION_NONE
-          define AP_COMPASS_AK8963_ENABLED TRUE
-          define AP_COMPASS_PROBING_ENABLED 1
+          #-----COMPASS / MAGNETOMETER DISABLE-----
+          define AP_COMPASS_AK8963_ENABLED FALSE
+          define AP_COMPASS_PROBING_ENABLED 0
 
-          # -----BARO-----
+          # -----BAROMETER SELECTION-----
           BARO BMP280 I2C:0:0x77
           define HAL_BARO_ALLOW_INIT_NO_BARO 1
 
-          # Wireless Subsystem
-          define HAL_ESP32_WIFI 1
-          define WIFI_SSID "ardupilot123"
-          define WIFI_PWD "ardupilot123"
-
-          #-----RCOUT-----
+          # ========================================================================
+          # 3. PWM MOTOR / SERVO OUTPUTS (RCOUT) - SEPARATED FROM SPI PINS
+          # ========================================================================
           ESP32_RCOUT GPIO_NUM_1
           ESP32_RCOUT GPIO_NUM_2
           ESP32_RCOUT GPIO_NUM_4
@@ -78,77 +75,5 @@ jobs:
           ESP32_RCOUT GPIO_NUM_6
           ESP32_RCOUT GPIO_NUM_7
 
-          #define HAL_ESP32_RCIN GPIO_NUM_14
-
-          #-----UARTS-----
-          ESP32_SERIAL  UART_NUM_0  GPIO_NUM_44  GPIO_NUM_43
-          ESP32_SERIAL  UART_NUM_1  GPIO_NUM_17  GPIO_NUM_18
-
-          define HAVE_FILESYSTEM_SUPPORT 1
-          define HAL_ESP32_SDMMC 1
-          define HAL_ESP32_SDCARD 1
-          define LOGGER_MAVLINK_SUPPORT 1
-          define HAL_OS_POSIX_IO 1
-          define HAL_LOGGING_BACKENDS_DEFAULT 1
-          EOF
-
-      - name: Inject Target Memory Matrix Configuration Settings
-        run: |
-          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
-          echo "" >> $TARGET_CONF
-          echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
-          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
-          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
-          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
-
-      - name: Execute Waf Configuration Framework
-        run: |
-          . $IDF_PATH/export.sh
-          python3 -m pip install --upgrade pip
-          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
-          python3 modules/waf/waf-light configure --board esp32s3devkit
-
-      - name: Verify Generated Hardware Macros
-        run: |
-          CONFIG_HEADER="build/esp32s3devkit/ap_config.h"
-          echo "========================================================"
-          echo "      VALIDATING ARDUPILOT GENERATED HARDWARE LAYER      "
-          echo "========================================================"
-          if [ -f "$CONFIG_HEADER" ]; then
-            echo ">>> Found ap_config.h! Checking compilation macros:"
-            echo "--------------------------------------------------------"
-            echo "Checking IMU Driver Bindings:"
-            grep -i "HAL_INS" "$CONFIG_HEADER" || echo "WARNING: No INS macros found!"
-            echo "Checking SPI Device Tables:"
-            grep -i "mpu9250" "$CONFIG_HEADER" || echo "WARNING: No MPU9250 SPI tracking found!"
-            echo "Checking Compass Allocation:"
-            grep -i "AK8963" "$CONFIG_HEADER" || echo "WARNING: No AK8963 Compass macros found!"
-            echo "Checking I2C Bus Infrastructure:"
-            grep -i "I2C" "$CONFIG_HEADER" || echo "WARNING: No I2C definitions found!"
-            echo "--------------------------------------------------------"
-            echo "Full HAL Peripheral Setup List:"
-            grep -E "HAL_.*_DEFAULT|HAL_OS_" "$CONFIG_HEADER" || true
-          else
-            echo "ERROR: ap_config.h was not generated!"
-            exit 1
-          fi
-
-      - name: Build Plane Target
-        run: |
-          . $IDF_PATH/export.sh
-          python3 modules/waf/waf-light plane
-          mkdir -p output_binaries
-          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
-          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
-
-      - name: Securely Upload Artifact Collection
-        uses: actions/upload-artifact@v4
-        with:
-          name: esp32s3-imu-package
-          path: output_binaries/
+          # ========================================================================
+          # 4. RC INPUT HANDLING (B
