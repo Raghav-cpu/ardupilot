@@ -80,7 +80,10 @@ jobs:
           # ========================================================================
           define HAL_ESP32_RCIN GPIO_NUM_14
           define AP_RCPROTOCOL_ENABLED 0
-          # define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
+          
+          # We define a dummy assignment to satisfy SoftSigReaderRMT compilation
+          # checks, while leaving AP_RCPROTOCOL_ENABLED off to keep it inactive.
+          define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_0
 
           # ========================================================================
           # 5. HIGH LEVEL SYSTEM ARCHITECTURE & TELEMETRY
