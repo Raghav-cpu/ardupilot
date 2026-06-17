@@ -1,91 +1,103 @@
-name: ESP32S3 Diagnostic Build
+name: ESP32S3 N16R8 Active IMU Build
 
 on:
+  push:
+    branches: [ master, main ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build_imu_s3:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Dependencies
+      - name: Install Base Linux Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python3-pip \
-            git \
-            wget \
-            unzip \
-            ninja-build \
-            cmake \
-            flex \
-            bison \
-            gperf \
-            libncurses-dev \
-            dfu-util \
-            libusb-1.0-0
+          sudo apt-get install -y python3-pip git wget unzip ninja-build cmake flex bison gperf libncurses-dev dfu-util libusb-1.0-0
 
-      - name: Install ESP-IDF
+      - name: Setup Isolated ESP-IDF Framework
         run: |
           git clone --branch release/v5.3 --depth 1 --recursive https://github.com/espressif/esp-idf.git modules/esp_idf
           cd modules/esp_idf
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Show HWDEF
+      - name: Overwrite Hardware Definitions with Custom Pinout Matrix
         run: |
-          echo "========== HWDEF =========="
-          cat libraries/AP_HAL_ESP32/hwdef/esp32s3devkit/hwdef.dat
+          # CORRECTED PATH: target 'hwdef' instead of 'boards'
+          DEVKIT_DIR="libraries/AP_HAL_ESP32/hwdef/esp32s3devkit"
+          mkdir -p $DEVKIT_DIR
+          
+          cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
+          # Custom Hardwired Pin Configuration for Raghavendra's Board
+          MCU ESP32S3
+          
+          # Wireless Network Infrastructure Mapping
+          RESERVE_WIFI
+          HAL_ESP32_WIFI 1
+          WIFI_SSID "ardupilot123"
+          WIFI_PWD "ardupilot123"
+          
+          # Route MAVLink to internal Wi-Fi loop tracking
+          SERIAL1_PROTOCOL MAVLink2
+          SERIAL1_BAUD 115200
+          
+          # Clean down SERIAL0 to avoid console logging conflicts
+          SERIAL0_PROTOCOL None
+          SERIAL0_BAUD 115200
+          
+          # PHYSICAL SPI INTERFACE REGISTER INITIALIZATION
+          ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_11 GPIO_NUM_13 GPIO_NUM_12
+          
+          # HARDWARE DEVICE REGISTRATION MATRIX
+          ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  3    1*MHZ   4*MHZ
+          
+          # Bind software engine abstraction to physical device
+          IMU mpu9250 SPI:mpu9250
+          
+          # Secondary Sensor Configurations (Set to none to isolate IMU verification)
+          HAL_BARO_DEFAULT HAL_BARO_NONE
+          AP_COMPASS_PROBING_ENABLED 0
+          AP_COMPASS_DEFAULT_ENABLED 0
+          EOF
 
-      - name: Install Python Packages
+      - name: Inject Target Memory Matrix Configuration Settings
         run: |
+          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          echo "" >> $TARGET_CONF
+          echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
+
+      - name: Execute Build Sequence via Explicit Python Engine Call
+        run: |
+          . $IDF_PATH/export.sh
+          
+          # Establish isolated build environment requirements
           python3 -m pip install --upgrade pip
-          python3 -m pip install \
-            empy==3.3.4 \
-            lxml \
-            pymavlink \
-            MAVProxy \
-            pexpect \
-            flake8 \
-            geocoder \
-            dronecan \
-            "pydantic<2.12"
-
-      - name: Configure Board
-        run: |
-          . $IDF_PATH/export.sh
-
-          pwd
-
-          ls -la libraries/AP_HAL_ESP32/hwdef/esp32s3devkit/
-
-          ./waf clean
-
-          ./waf configure --board esp32s3devkit -v
-
-      - name: Build Plane
-        run: |
-          . $IDF_PATH/export.sh
-
-          ./waf plane -v
-
-      - name: Collect Artifacts
-        if: success()
-        run: |
+          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+          
+          # Direct python interpreter invocation prevents configuration loss drops
+          python3 modules/waf/waf-light configure --board esp32s3devkit
+          python3 modules/waf/waf-light plane
+          
           mkdir -p output_binaries
+          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/bootloader.bin
+          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/partition-table.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin
 
-          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin output_binaries/ || true
-          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin output_binaries/ || true
-          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin output_binaries/ArduPlane.esp32s3n16r8.bin || true
-
-      - name: Upload Artifacts
-        if: success()
+      - name: Securely Upload Artifact Collection
         uses: actions/upload-artifact@v4
         with:
-          name: esp32s3-diagnostic-build
+          name: esp32s3-imu-package
           path: output_binaries/
