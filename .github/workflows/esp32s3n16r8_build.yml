@@ -43,7 +43,7 @@ jobs:
           # SPI Device Registration (Mode 0)
           ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  0    1*MHZ   4*MHZ
 
-          define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
+          #define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
 
           # ADC Pin Maps
           ESP32_ADC_PIN ADC_CHANNEL_4       11     1
@@ -78,7 +78,7 @@ jobs:
           ESP32_RCOUT GPIO_NUM_6
           ESP32_RCOUT GPIO_NUM_7
 
-          define HAL_ESP32_RCIN GPIO_NUM_14
+          #define HAL_ESP32_RCIN GPIO_NUM_14
 
           #-----UARTS-----
           ESP32_SERIAL  UART_NUM_0  GPIO_NUM_44  GPIO_NUM_43
