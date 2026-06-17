@@ -26,58 +26,77 @@ jobs:
           ./install.sh esp32s3
           echo "IDF_PATH=$GITHUB_WORKSPACE/modules/esp_idf" >> $GITHUB_ENV
 
-      - name: Overwrite Hardware Definitions with Custom Pinout Matrix
+      - name: Overwrite Hardware Definitions with Pristine ESP32 Parser Layout
         run: |
           DEVKIT_DIR="libraries/AP_HAL_ESP32/hwdef/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
           cat << 'EOF' > $DEVKIT_DIR/hwdef.dat
-          # Custom Hardwired Pin Configuration for Raghavendra's Board
-          MCU ESP32S3
-          
-          # Wireless Network Infrastructure Mapping
-          RESERVE_WIFI
-          HAL_ESP32_WIFI 1
-          WIFI_SSID "ardupilot123"
-          WIFI_PWD "ardupilot123"
-          
-          # Route MAVLink to internal Wi-Fi loop tracking
-          SERIAL1_PROTOCOL MAVLink2
-          SERIAL1_BAUD 115200
-          
-          # Clean down SERIAL0 to avoid console logging conflicts
-          SERIAL0_PROTOCOL None
-          SERIAL0_BAUD 115200
-          
-          # PHYSICAL SPI INTERFACE REGISTER INITIALIZATION
+          define HAL_ESP32_BOARD_NAME "esp32s3devkit"
+
+          # SPI Bus Setup (Targeting your physical pins)
           ESP32_SPIBUS SPI3_HOST SPI_DMA_CH_AUTO GPIO_NUM_11 GPIO_NUM_13 GPIO_NUM_12
-          
-          # HARDWARE DEVICE REGISTRATION MATRIX
+
+          # I2C Bus Setup (Satisfies HAL_ESP32_I2C_BUSES macro safely)
+          ESP32_I2CBUS  I2C_NUM_0  GPIO_NUM_16 GPIO_NUM_15  400*KHZ  true     false
+
+          # SPI Device Registration (Mode 3 for your MPU9250 configuration)
           ESP32_SPIDEV mpu9250             0     0       GPIO_NUM_10  3    1*MHZ   4*MHZ
-          
-          # Bind software engine abstraction to physical device
-          IMU mpu9250 SPI:mpu9250
-          
-          # REQUIRED COMPILER STRUCTURAL SATISFACTION: I2C BUS DEFINITION
-          # Syntax: I2C_PORT SCL_PIN SDA_PIN SPEED
-          I2C I2C_NUM_0 GPIO_NUM_8 GPIO_NUM_9 400000
-          
-          # REQUIRED COMPILER STRUCTURAL SATISFACTION: PWM SERVO OUTPUTS
-          # Syntax: PIN_NUM OUTPUT
-          GPIO_NUM_1 OUTPUT
-          GPIO_NUM_2 OUTPUT
-          GPIO_NUM_4 OUTPUT
-          GPIO_NUM_5 OUTPUT
-          
-          # Secondary Sensor Configurations (Set to none to isolate IMU verification)
-          HAL_BARO_DEFAULT HAL_BARO_NONE
-          AP_COMPASS_PROBING_ENABLED 0
-          AP_COMPASS_DEFAULT_ENABLED 0
+
+          define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
+
+          # ADC Pin Maps
+          ESP32_ADC_PIN ADC_CHANNEL_4       11     1
+          ESP32_ADC_PIN ADC_CHANNEL_3       11     2
+          ESP32_ADC_PIN ADC_CHANNEL_1       11     3
+          ESP32_ADC_PIN ADC_CHANNEL_0       11     4
+
+          #-----INS/IMU-----
+          IMU Invensense SPI:mpu9250 ROTATION_NONE
+          define HAL_INS_DEFAULT HAL_INS_MPU9250_SPI
+          define INS_MAX_INSTANCES 3
+
+          #-----COMPASS-----
+          COMPASS AK8963:probe_mpu9250 0 ROTATION_NONE
+          define AP_COMPASS_AK8963_ENABLED TRUE
+          define AP_COMPASS_PROBING_ENABLED 1
+
+          # -----BARO-----
+          BARO BMP280 I2C:0:0x77
+          define HAL_BARO_ALLOW_INIT_NO_BARO 1
+
+          # Wireless Subsystem
+          define HAL_ESP32_WIFI 1
+          define WIFI_SSID "ardupilot123"
+          define WIFI_PWD "ardupilot123"
+
+          #-----RCOUT (Shifted to clear conflicts with SPI pins 10 and 11)-----
+          ESP32_RCOUT GPIO_NUM_1
+          ESP32_RCOUT GPIO_NUM_2
+          ESP32_RCOUT GPIO_NUM_4
+          ESP32_RCOUT GPIO_NUM_5
+          ESP32_RCOUT GPIO_NUM_6
+          ESP32_RCOUT GPIO_NUM_7
+
+          define HAL_ESP32_RCIN GPIO_NUM_14
+
+          #-----UARTS-----
+          ESP32_SERIAL  UART_NUM_0  GPIO_NUM_44  GPIO_NUM_43
+          ESP32_SERIAL  UART_NUM_1  GPIO_NUM_17  GPIO_NUM_18
+
+          define HAVE_FILESYSTEM_SUPPORT 1
+          define HAL_ESP32_SDMMC 1
+          define HAL_ESP32_SDCARD 1
+          define LOGGER_MAVLINK_SUPPORT 1
+          define HAL_OS_POSIX_IO 1
+          define HAL_LOGGING_BACKENDS_DEFAULT 1
           EOF
 
       - name: Inject Target Memory Matrix Configuration Settings
         run: |
           TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          
+          # Force compiler to expand sizing structures out to N16R8 OPI specification mappings
           echo "" >> $TARGET_CONF
           echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
           echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
@@ -93,11 +112,11 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           
-          # Establish isolated build environment requirements
+          # Install dependencies securely inside the runner container environment
           python3 -m pip install --upgrade pip
           python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
           
-          # Direct python interpreter invocation prevents configuration loss drops
+          # Kickoff Waf architecture configuration step directly
           python3 modules/waf/waf-light configure --board esp32s3devkit
           python3 modules/waf/waf-light plane
           
