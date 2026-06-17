@@ -28,7 +28,6 @@ jobs:
 
       - name: Overwrite Hardware Definitions with Custom Pinout Matrix
         run: |
-          # CORRECTED PATH: target 'hwdef' instead of 'boards'
           DEVKIT_DIR="libraries/AP_HAL_ESP32/hwdef/esp32s3devkit"
           mkdir -p $DEVKIT_DIR
           
@@ -58,6 +57,14 @@ jobs:
           
           # Bind software engine abstraction to physical device
           IMU mpu9250 SPI:mpu9250
+          
+          # PWM SERVO OUTPUTS (Fixes the RCOutput array subscript bounds compilation error)
+          GPIO_NUM_1  PWM1 PWM
+          GPIO_NUM_2  PWM2 PWM
+          GPIO_NUM_4  PWM3 PWM
+          GPIO_NUM_5  PWM4 PWM
+          GPIO_NUM_6  PWM5 PWM
+          GPIO_NUM_7  PWM6 PWM
           
           # Secondary Sensor Configurations (Set to none to isolate IMU verification)
           HAL_BARO_DEFAULT HAL_BARO_NONE
