@@ -88,3 +88,101 @@ jobs:
           # Native Serial UART Infrastructure
           #              Port          RX           TX
           ESP32_SERIAL   UART_NUM_0    GPIO_NUM_44  GPIO_NUM_43
+          ESP32_SERIAL   UART_NUM_1    GPIO_NUM_17  GPIO_NUM_18
+
+          # Wireless Access Point Settings
+          define HAL_ESP32_WIFI 1
+          define WIFI_SSID "ardupilot123"
+          define WIFI_PWD "ardupilot123"
+
+          # Storage & File System
+          define HAVE_FILESYSTEM_SUPPORT 1
+          define HAL_ESP32_SDMMC 1
+          define HAL_ESP32_SDCARD 1
+          define LOGGER_MAVLINK_SUPPORT 1
+          define HAL_OS_POSIX_IO 1
+          define HAL_LOGGING_BACKENDS_DEFAULT 1
+          EOF
+
+      - name: Inject Target Memory Matrix Configuration Settings
+        run: |
+          TARGET_CONF="libraries/AP_HAL_ESP32/targets/esp32s3/esp-idf/sdkconfig.defaults"
+          echo "" >> $TARGET_CONF
+          echo "# Force N16R8 OPI Memory Architecture Alignment Rules" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHMODE_OPI=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE_16M=y" >> $TARGET_CONF
+          echo "CONFIG_ESPTOOLPY_FLASHSIZE=\"16MB\"" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_TYPE_AUTO=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_MODE_OCT=y" >> $TARGET_CONF
+          echo "CONFIG_SPIRAM_SPEED_80M=y" >> $TARGET_CONF
+          echo "CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240=y" >> $TARGET_CONF
+
+      - name: Execute Waf Configuration Framework
+        run: |
+          . $IDF_PATH/export.sh
+          python3 -m pip install --upgrade pip
+          python3 -m pip install empy==3.3.4 lxml pymavlink MAVProxy pexpect flake8 geocoder dronecan "pydantic<2.12"
+          python3 modules/waf/waf-light configure --board esp32s3devkit
+
+      - name: Verify Generated Hardware Macros
+        run: |
+          CONFIG_HEADER="build/esp32s3devkit/ap_config.h"
+          echo "========================================================"
+          echo "      VALIDATING ARDUPILOT GENERATED HARDWARE LAYER      "
+          echo "========================================================"
+          if [ -f "$CONFIG_HEADER" ]; then
+            echo ">>> Found ap_config.h! Checking compilation macros:"
+            echo "--------------------------------------------------------"
+            echo "Checking IMU Driver Bindings:"
+            grep -i "HAL_INS" "$CONFIG_HEADER" || echo "WARNING: No INS macros found!"
+            echo "Checking SPI Device Tables:"
+            grep -i "mpu9250" "$CONFIG_HEADER" || echo "WARNING: No MPU9250 SPI tracking found!"
+            echo "Checking Compass Allocation:"
+            grep -i "AK8963" "$CONFIG_HEADER" || echo "WARNING: No AK8963 Compass macros found!"
+            echo "Checking I2C Bus Infrastructure:"
+            grep -i "I2C" "$CONFIG_HEADER" || echo "WARNING: No I2C definitions found!"
+            echo "--------------------------------------------------------"
+            echo "Full HAL Peripheral Setup List:"
+            grep -E "HAL_.*_DEFAULT|HAL_OS_" "$CONFIG_HEADER" || true
+          else
+            echo "ERROR: ap_config.h was not generated!"
+            exit 1
+          fi
+
+      - name: Build Plane Target and Dynamic Extraction
+        run: |
+          . $IDF_PATH/export.sh
+          python3 modules/waf/waf-light plane
+          
+          # Create clean output staging directory
+          mkdir -p output_binaries
+          
+          echo "========================================================"
+          echo "     DYNAMICALLY EXTRACTING GENERATED TARGET BINARIES    "
+          echo "========================================================"
+          
+          # Find and move the primary flight firmware binary
+          find build/esp32s3devkit/ -type f -name "*.bin" ! -name "bootloader.bin" ! -name "partition-table.bin" -exec cp {} output_binaries/ArduPlane.esp32s3n16r8.bin \;
+          
+          # Find and move the auxiliary system bootloader
+          find build/esp32s3devkit/ -type f -name "bootloader.bin" -exec cp {} output_binaries/bootloader.bin \;
+          
+          # Find and move the partition tables map
+          find build/esp32s3devkit/ -type f -name "partition-table.bin" -exec cp {} output_binaries/partition-table.bin \;
+          
+          echo ">>> Extraction complete. Verifying staged outputs:"
+          echo "--------------------------------------------------------"
+          ls -lh output_binaries/
+          
+          # Enforce compilation barrier failure if extraction turned up empty
+          if [ ! -s output_binaries/bootloader.bin ]; then
+             echo "FATAL BUILD CONFIGURATION FAIL: System binaries were not recovered!"
+             exit 1
+          fi
+
+      - name: Securely Upload Artifact Collection
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32s3-imu-package
+          path: output_binaries/
