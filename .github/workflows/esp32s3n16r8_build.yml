@@ -58,13 +58,16 @@ jobs:
           # Bind software engine abstraction to physical device
           IMU mpu9250 SPI:mpu9250
           
-          # PWM SERVO OUTPUTS (Fixes the RCOutput array subscript bounds compilation error)
-          GPIO_NUM_1  PWM1 PWM
-          GPIO_NUM_2  PWM2 PWM
-          GPIO_NUM_4  PWM3 PWM
-          GPIO_NUM_5  PWM4 PWM
-          GPIO_NUM_6  PWM5 PWM
-          GPIO_NUM_7  PWM6 PWM
+          # REQUIRED COMPILER STRUCTURAL SATISFACTION: I2C BUS DEFINITION
+          # Syntax: I2C_PORT SCL_PIN SDA_PIN SPEED
+          I2C I2C_NUM_0 GPIO_NUM_8 GPIO_NUM_9 400000
+          
+          # REQUIRED COMPILER STRUCTURAL SATISFACTION: PWM SERVO OUTPUTS
+          # Syntax: PIN_NUM OUTPUT
+          GPIO_NUM_1 OUTPUT
+          GPIO_NUM_2 OUTPUT
+          GPIO_NUM_4 OUTPUT
+          GPIO_NUM_5 OUTPUT
           
           # Secondary Sensor Configurations (Set to none to isolate IMU verification)
           HAL_BARO_DEFAULT HAL_BARO_NONE
