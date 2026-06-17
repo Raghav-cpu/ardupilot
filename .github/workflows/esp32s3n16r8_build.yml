@@ -76,4 +76,15 @@ jobs:
           ESP32_RCOUT GPIO_NUM_7
 
           # ========================================================================
-          # 4. RC INPUT HANDLING (B
+          # 4. RC INPUT HANDLING (Bypasses RMT Calculation Panic)
+          # ========================================================================
+          define HAL_ESP32_RCIN GPIO_NUM_14
+          define AP_RCPROTOCOL_ENABLED 0
+          # define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
+
+          # ========================================================================
+          # 5. HIGH LEVEL SYSTEM ARCHITECTURE & TELEMETRY
+          # ========================================================================
+          # Native Serial UART Infrastructure
+          #              Port          RX           TX
+          ESP32_SERIAL   UART_NUM_0    GPIO_NUM_44  GPIO_NUM_43
